@@ -20,11 +20,12 @@ got here.
 
 ## Why this exists
 
-A forward-deployed engineer sits through a 1–2 hour process-mapping
-recording, then has to write or verify a process document (an AOP/SOP) from
-what they saw — and today that means re-scrubbing the whole video every time
-a detail needs checking. Audix removes that: ingest the video once, ask it
-questions forever after.
+Whenever you need to really understand a process-walkthrough video — a
+screen recording, a client call, a 1–2 hour process-mapping session — the
+only way to check a detail today is to re-scrub the whole recording, every
+single time. Audix removes that: ingest the video once, ask it questions
+forever after. It's also what makes writing or verifying a process document
+(an AOP/SOP) from that video actually tractable instead of a slog.
 
 The one rule everything else follows: **never send raw video anywhere it
 doesn't have to go.** Transcription and scene-detection run locally, for
