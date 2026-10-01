@@ -1,0 +1,20 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+backend/data/
+*.bin
+*.wav
+node_modules/
+
+# raw video uploads and sample footage -- large binaries, never belong in git
+uploads/
+samples/
+
+# one-off throwaway files, not part of the project
+1.py
+.DS_Store
+scripts/spike_agentic_video_results.json
+
+# Claude Code session-internal state, not part of the project
+.claude/

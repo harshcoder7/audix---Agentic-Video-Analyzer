@@ -1,0 +1,48 @@
+/* Shared design tokens for Audix's pages (index.html, workspace.html).
+   Superset of both pages' previous per-page copies -- extracted here so the
+   two pages can't silently drift out of sync again. */
+:root {
+  color-scheme: dark;
+  --bg: #14161a; --bg-panel: #1a1d22; --bg-surface: #23262d; --bg-surface-hover: #2b2f37;
+  --bg-input: #0f1114; --bg-elevated: #1d2129;
+  --overlay: #1a1d22ee; --overlay-soft: #1a1d22cc; --modal-backdrop: #00000099;
+  --border: #2a2e35; --border-soft: #3a3f4b; --border-faint: #22262c;
+  --text: #e6e6e6; --text-body: #dcdfe3; --text-muted: #9aa0a8; --text-dim: #8a8f98; --text-faint: #6f7580;
+  --accent: #2d5bff; --accent-hover: #4169ff; --accent-soft: #2d5bff33;
+  --accent-text: #7d9dff; --accent-text-hover: #a7bcff;
+  --danger: #e5484d; --danger-text: #ff9d9d; --danger-text-2: #ff8a8a;
+  --warning: #ffb454; --warning-2: #ffb84f;
+  --success: #4fd18a; --success-2: #8fd19e; --success-border: #2c4a3a;
+}
+/* Warm cream palette, not a cool-gray "inverted dark mode" -- a background
+   this warm needs warm-leaning text/borders too, or it reads as mismatched
+   (cool gray text on warm cream looks patchy rather than chosen). */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f1e6; --bg-panel: #fffcf5; --bg-surface: #efe8d9; --bg-surface-hover: #e6ddc9;
+  --bg-input: #f1ead9; --bg-elevated: #faf5ea;
+  --overlay: #fffcf5ee; --overlay-soft: #fffcf5cc; --modal-backdrop: #00000055;
+  --border: #e3d9c2; --border-soft: #d1c3a3; --border-faint: #ece3d0;
+  --text: #2b2418; --text-body: #3a3222; --text-muted: #6b5f47; --text-dim: #7d7156; --text-faint: #948765;
+  --accent: #2d5bff; --accent-hover: #1f47d1; --accent-soft: #2d5bff1f;
+  --accent-text: #3559e0; --accent-text-hover: #1f47d1;
+  --danger: #c23b3b; --danger-text: #c23b3b; --danger-text-2: #b23434;
+  --warning: #a8650a; --warning-2: #a8650a;
+  --success: #1f7a4c; --success-2: #1f7a4c; --success-border: #bfe3cf;
+}
+
+/* ---------- shared small components used on both pages ---------- */
+.panel-toggle-btn {
+  background: var(--bg-surface); border: 1px solid var(--border-soft); color: var(--text-muted); border-radius: 5px;
+  width: 18px; height: 28px; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; padding: 0; cursor: pointer; font-family: inherit;
+}
+.panel-toggle-btn:hover { background: var(--bg-surface-hover); color: var(--text-body); }
+.panel-toggle-btn .arrow { transition: transform 0.18s ease; display: inline-block; }
+
+.icon-btn {
+  background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px;
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 14px;
+  cursor: pointer; font-family: inherit;
+}
+.icon-btn:hover { background: var(--bg-surface); }

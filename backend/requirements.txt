@@ -1,0 +1,16 @@
+# Ingestion pipeline
+scenedetect[opencv]==0.6.5.2
+opencv-python-headless==4.11.0.86
+
+# API + graph
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+networkx==3.4.2
+pydantic==2.10.4
+python-dotenv==1.0.1
+
+# LLM clients (structured extraction step) — pick whichever backend is configured at runtime
+google-genai==2.19.0
+openai==1.59.6
+python-multipart==0.0.20
+python-docx==1.1.2

@@ -1,0 +1,2027 @@
+<title>Audix</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='13' cy='13' r='8.5' stroke='%232d5bff' stroke-width='2.4' fill='%2314161a'/%3E%3Cline x1='19.2' y1='19.2' x2='26.5' y2='26.5' stroke='%232d5bff' stroke-width='2.8' stroke-linecap='round'/%3E%3Cpath d='M10.5 8.5 L10.5 17.5 L18 13 Z' fill='%232d5bff'/%3E%3C/svg%3E">
+<script>document.documentElement.setAttribute("data-theme", localStorage.getItem("theme") || "dark");</script>
+<link rel="stylesheet" href="/assets/theme.css">
+<script src="https://unpkg.com/force-graph@1.43.5/dist/force-graph.min.js"></script>
+<script src="/assets/shared.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--text); height: 100vh; display: flex; overflow: hidden; font-size: 14px;
+  }
+  button { font-family: inherit; cursor: pointer; }
+
+  /* ---------- left sidebar ---------- */
+  #sidebar {
+    width: 250px; flex-shrink: 0; background: var(--bg-panel); border-right: 1px solid var(--border);
+    padding: 14px 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px;
+    transition: width 0.18s ease, padding 0.18s ease;
+  }
+  body.sidebar-collapsed #sidebar { width: 0; padding: 0; border-right: none; overflow: hidden; }
+
+  #brand {
+    display: flex; align-items: center; gap: 8px; padding: 2px 2px 4px; margin-bottom: -6px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--text);
+  }
+
+  /* thin permanent rail so the toggle stays reachable even when collapsed --
+     same idea as #resizer, just not draggable (sidebar width is fixed). */
+  #sidebar-rail {
+    width: 14px; flex-shrink: 0; background: var(--bg-panel); border-right: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .panel-toggle-btn {
+    background: var(--bg-surface); border: 1px solid var(--border-soft); color: var(--text-muted); border-radius: 5px;
+    width: 18px; height: 28px; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; padding: 0;
+  }
+  .panel-toggle-btn:hover { background: var(--bg-surface-hover); color: var(--text-body); }
+  .panel-toggle-btn .arrow { transition: transform 0.18s ease; display: inline-block; }
+  body.sidebar-collapsed #sidebar-toggle .arrow { transform: rotate(180deg); }
+  .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin: 0 0 8px 4px; }
+  .section-title-row { display: flex; align-items: center; justify-content: space-between; margin: 0 0 8px; }
+  .section-title-row .section-title { margin: 0; }
+  #new-folder-btn {
+    background: none; border: none; color: var(--text-dim); font-size: 11px; font-weight: 600;
+    padding: 2px 4px; border-radius: 5px;
+  }
+  #new-folder-btn:hover { background: var(--bg-surface); color: var(--text-body); }
+  #upload-box { display: flex; flex-direction: column; gap: 6px; }
+  #project-input {
+    background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 6px;
+    padding: 7px 9px; font-size: 12px;
+  }
+  .btn {
+    background: var(--accent); color: white; border: none; border-radius: 6px; padding: 8px 10px;
+    font-size: 12.5px; font-weight: 600; text-align: center; display: block;
+  }
+  .btn:hover { background: var(--accent-hover); }
+  .btn.secondary { background: var(--bg-surface); color: var(--text-body); }
+  .btn.secondary:hover { background: var(--bg-surface-hover); }
+
+  /* ---------- project grouping (folder-style) ---------- */
+  .project-header {
+    display: flex; align-items: center; gap: 6px; padding: 7px 8px; border-radius: 6px; cursor: pointer;
+    font-size: 12.5px; font-weight: 600; margin-top: 6px;
+  }
+  .project-header:first-child { margin-top: 0; }
+  .project-header:hover { background: var(--bg-surface); }
+  .project-header.active { background: var(--accent-soft); color: var(--accent-text); }
+  .project-header .folder-icon { font-size: 12px; opacity: 0.8; }
+  .project-header .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .project-header .count { font-size: 10.5px; color: var(--text-faint); font-weight: 400; }
+  .project-videos {
+    display: flex; flex-direction: column; padding-left: 12px; margin-left: 10px;
+    border-left: 1px solid var(--border-faint);
+  }
+  .empty-folder-hint { font-size: 11.5px; color: var(--text-faint); padding: 5px 8px; }
+
+  .video-item {
+    padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12.5px; margin-bottom: 1px;
+    display: flex; justify-content: space-between; align-items: center; gap: 6px;
+  }
+  .video-item:hover { background: var(--bg-surface); }
+  .video-item.active { background: var(--accent-soft); color: var(--accent-text); }
+  .no-graph-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warning-2); flex-shrink: 0; }
+  .video-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .video-item .del {
+    display: none; background: none; border: none; color: var(--text-faint); font-size: 13px;
+    padding: 2px; flex-shrink: 0; cursor: pointer;
+  }
+  .video-item:hover .del { display: block; }
+  .video-item .del:hover { color: var(--danger-text); }
+
+  .job-row { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+  .job-row .name { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+  .job-row .stage { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+  .job-row .bar-bg { height: 5px; border-radius: 3px; background: var(--border); overflow: hidden; }
+  .job-row .bar-fg { height: 100%; background: var(--accent); transition: width 0.4s ease; }
+  .job-row.failed .bar-fg { background: var(--danger); }
+  .job-row.failed .stage { color: var(--danger-text-2); }
+
+  /* sits right below the video-list, which already has flex:1 and pushes
+     everything after it to the bottom of the sidebar on its own. */
+  #global-usage-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 0 4px; font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums;
+  }
+  #global-usage-badge { color: var(--text-dim); font-weight: 600; }
+  #sidebar-footer { display: flex; gap: 8px; }
+  #settings-btn {
+    flex: 1; background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px;
+    padding: 8px; font-size: 12px; display: flex; align-items: center; gap: 6px; justify-content: center;
+  }
+  #settings-btn:hover { background: var(--bg-surface); }
+  #theme-toggle-btn {
+    background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px;
+    width: 34px; font-size: 14px; display: flex; align-items: center; justify-content: center;
+  }
+  #theme-toggle-btn:hover { background: var(--bg-surface); }
+
+  /* ---------- main (video + graph) ---------- */
+  #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #video-wrap { flex-shrink: 0; height: 280px; background: #000; display: flex; justify-content: center; }
+  video { width: 100%; height: 100%; object-fit: contain; }
+
+  /* shown instead of the <video> element while a project (not a single
+     video) is selected -- reuses #video-wrap's own height/resizer so the
+     drag-to-resize behavior keeps working unchanged in either mode. */
+  #project-banner {
+    display: none; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    color: var(--text-faint); font-size: 13px; text-align: center; padding: 20px; width: 100%;
+  }
+  #project-banner-text { font-size: 15px; font-weight: 600; color: var(--text-body); }
+  #project-banner .hint { font-size: 12px; }
+
+  #project-stale-banner {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5;
+    background: var(--warning); color: var(--bg-panel); font-size: 11.5px; font-weight: 500;
+    padding: 6px 12px; border-radius: 6px; display: none; align-items: center; gap: 10px;
+  }
+  #project-stale-banner button {
+    background: var(--bg-panel); color: var(--text); border: none; border-radius: 4px; padding: 3px 9px; font-size: 11px;
+  }
+
+  #video-resizer {
+    height: 6px; flex-shrink: 0; cursor: row-resize; background: var(--bg-panel);
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); position: relative;
+  }
+  #video-resizer:hover, #video-resizer.dragging { background: var(--bg-surface); }
+  #video-resizer::after {
+    content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 28px; height: 2px; border-top: 1px dashed var(--border-soft); border-bottom: 1px dashed var(--border-soft);
+  }
+
+  #view-tabs {
+    display: flex; gap: 6px; padding: 8px 12px; flex-shrink: 0;
+    background: var(--bg-panel); border-bottom: 1px solid var(--border);
+  }
+  .view-tab-btn {
+    background: none; border: 1px solid var(--border-soft); color: var(--text-muted); border-radius: 999px;
+    padding: 5px 13px; font-size: 12px; font-weight: 600;
+  }
+  .view-tab-btn:hover { background: var(--bg-surface); color: var(--text-body); }
+  .view-tab-btn.active { background: var(--accent-soft); color: var(--accent-text); border-color: transparent; }
+  .view-tab-btn:disabled { opacity: 0.4; cursor: default; }
+  .view-tab-btn:disabled:hover { background: none; color: var(--text-muted); }
+
+  /* every view panel (graph/transcript/notes) fades+lifts in rather than
+     snapping visible -- purely cosmetic, toggled by switchView() below. */
+  .view-panel-enter { animation: viewPanelIn 0.16s ease both; }
+  @keyframes viewPanelIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  #graph-wrap { flex: 1; position: relative; min-height: 0; overflow: hidden; background: var(--bg); }
+  #graph { position: absolute; inset: 0; overflow: hidden; }
+  #node-detail {
+    position: absolute; top: 12px; right: 12px; width: 240px; background: var(--overlay);
+    border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-size: 13px;
+    display: none; backdrop-filter: blur(6px);
+  }
+  #node-detail .type { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; }
+  #node-detail .label { font-size: 15px; font-weight: 600; margin: 2px 0 6px; padding-right: 18px; }
+  .node-detail-close {
+    position: absolute; top: 8px; right: 8px; background: none; border: none; color: var(--text-faint);
+    font-size: 16px; line-height: 1; padding: 2px 4px; border-radius: 4px;
+  }
+  .node-detail-close:hover { background: var(--bg-surface); color: var(--text-body); }
+  #legend {
+    position: absolute; bottom: 12px; left: 12px; display: flex; gap: 12px; font-size: 11px;
+    background: var(--overlay-soft); padding: 6px 10px; border-radius: 6px;
+  }
+  #legend span { display: flex; align-items: center; gap: 4px; }
+  #legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  #empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-faint); font-size: 14px; }
+
+  #focus-reset {
+    position: absolute; top: 12px; left: 12px; background: var(--overlay); border: 1px solid var(--border-soft);
+    color: var(--text-muted); font-size: 11.5px; padding: 6px 11px; border-radius: 6px; cursor: pointer;
+    display: none; align-items: center; gap: 6px; backdrop-filter: blur(6px);
+  }
+  #focus-reset:hover { background: var(--bg-surface); }
+  #focus-reset .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warning); }
+
+  /* ---------- transcript view: sectioned by scene, Avoma-style turn layout ---------- */
+  #transcript-wrap { flex: 1; min-height: 0; overflow-y: auto; background: var(--bg); padding: 0; display: none; }
+  #transcript-header {
+    position: sticky; top: 0; z-index: 2; display: flex; justify-content: flex-end; padding: 10px 18px;
+    background: var(--bg); border-bottom: 1px solid var(--border-faint);
+  }
+  #transcript-list { padding: 18px 20px 28px; max-width: 640px; margin: 0 auto; }
+  #follow-playback-btn {
+    display: flex; align-items: center; gap: 6px; background: none; border: 1px solid var(--border-soft);
+    color: var(--text-muted); border-radius: 999px; padding: 4px 11px; font-size: 11.5px; font-weight: 600;
+  }
+  #follow-playback-btn .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); }
+  #follow-playback-btn.on { background: var(--accent-soft); color: var(--accent-text); border-color: transparent; }
+  #follow-playback-btn.on .dot { background: var(--accent); }
+
+  /* one section per detected scene -- the closest thing this transcript has
+     to Avoma's "speaker turn": a natural break in the recording, here a
+     screen/scene change instead of a change of speaker. */
+  .t-section { margin-bottom: 22px; }
+  .t-section-head {
+    display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px; border-radius: 8px;
+    margin-bottom: 4px;
+  }
+  .t-section-head:hover { background: var(--bg-surface); }
+  .t-section-head img, .t-section-head .t-avatar-placeholder {
+    width: 34px; height: 34px; border-radius: 7px; object-fit: cover; flex-shrink: 0;
+    border: 1px solid var(--border); background: #000;
+  }
+  .t-section-pill {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    background: var(--accent); color: #fff; border-radius: 5px; padding: 3px 8px; flex-shrink: 0;
+  }
+
+  .t-line {
+    display: flex; gap: 12px; padding: 6px 10px 6px 52px; margin-left: -6px; border-radius: 7px;
+    cursor: pointer; border-left: 2.5px solid transparent; transition: background-color 0.15s ease, border-left-color 0.15s ease;
+  }
+  .t-line:hover { background: var(--bg-surface); }
+  .t-line.active { background: var(--accent-soft); border-left-color: var(--accent); }
+  .t-line-time {
+    font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; flex-shrink: 0;
+    width: 42px; padding-top: 2px;
+  }
+  .t-line.active .t-line-time { color: var(--accent-text); font-weight: 600; }
+  .t-line-text { font-size: 14px; line-height: 1.55; color: var(--text-body); }
+  .t-line.active .t-line-text { color: var(--text); }
+  #transcript-empty { color: var(--text-faint); font-size: 13px; padding: 24px 4px; text-align: center; }
+
+  /* ---------- notes view (Notion-lite: contenteditable + a small toolbar) ---------- */
+  #notes-wrap { flex: 1; min-height: 0; display: none; flex-direction: column; background: var(--bg); }
+  #notes-toolbar {
+    display: flex; align-items: center; gap: 4px; padding: 8px 14px; border-bottom: 1px solid var(--border-faint);
+    background: var(--bg-panel); flex-shrink: 0;
+  }
+  .notes-tool-btn {
+    background: none; border: 1px solid transparent; color: var(--text-muted); border-radius: 6px;
+    width: 28px; height: 26px; display: flex; align-items: center; justify-content: center; font-size: 13px;
+  }
+  .notes-tool-btn:hover { background: var(--bg-surface); border-color: var(--border-soft); color: var(--text-body); }
+  .notes-tool-sep { width: 1px; height: 18px; background: var(--border-faint); margin: 0 4px; }
+  #notes-save-status {
+    margin-left: auto; font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums;
+  }
+  #notes-editor {
+    flex: 1; min-height: 0; overflow-y: auto; padding: 20px 26px; font-size: 14px; line-height: 1.65;
+    color: var(--text-body); outline: none; max-width: 760px;
+  }
+  #notes-editor:empty::before {
+    content: attr(data-placeholder); color: var(--text-faint); pointer-events: none;
+  }
+  #notes-editor ul, #notes-editor ol { margin: 4px 0; padding-left: 24px; }
+  #notes-editor li { margin: 2px 0; }
+  #notes-editor p { margin: 0 0 8px; }
+  #notes-editor .todo-item { display: flex; align-items: flex-start; gap: 8px; list-style: none; margin: 3px 0; }
+  #notes-editor .todo-item input[type="checkbox"] { margin-top: 4px; flex-shrink: 0; }
+  #notes-editor .todo-item.checked span { color: var(--text-faint); text-decoration: line-through; }
+  #notes-editor ul.todo-list { padding-left: 0; }
+
+  /* ---------- resizer between graph and chat ---------- */
+  #resizer {
+    width: 6px; flex-shrink: 0; cursor: col-resize; background: var(--bg-panel);
+    border-left: 1px solid var(--border); border-right: 1px solid var(--border); position: relative;
+  }
+  #resizer:hover, #resizer.dragging { background: var(--bg-surface); }
+  #resizer .panel-toggle-btn {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1;
+  }
+  body.chat-collapsed #chat-panel { width: 0 !important; overflow: hidden; }
+  body.chat-collapsed #resizer { cursor: default; }
+  body.chat-collapsed #chat-toggle .arrow { transform: rotate(180deg); }
+
+  /* ---------- right chat panel ---------- */
+  #chat-panel {
+    width: 340px; flex-shrink: 0; background: var(--bg-panel);
+    display: flex; flex-direction: column; min-height: 0; transition: width 0.18s ease;
+  }
+  #chat-header { padding: 14px 14px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+  .chat-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 12px; }
+  .chat-title { font-weight: 600; }
+  #chat-header .sub { font-weight: 400; font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+  /* Collapsed by default -- one compact control instead of a permanent stack
+     of checkboxes eating vertical space above every conversation. */
+  .chat-options-btn {
+    flex-shrink: 0; display: flex; align-items: center; gap: 5px; background: none; border: none;
+    color: var(--text-dim); font-size: 11.5px; font-weight: 400; padding: 4px 8px; border-radius: 6px;
+    margin-top: 1px;
+  }
+  .chat-options-btn:hover { background: var(--bg-surface); color: var(--text-body); }
+  .chat-options-btn .chevron { font-size: 9px; transition: transform 0.15s ease; display: inline-block; }
+  .chat-options-btn[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+  .chat-options-badge {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: none; flex-shrink: 0;
+  }
+  .chat-options-badge.on { display: block; }
+
+  /* ---------- context-window usage badge ---------- */
+  #ctx-badge-wrap { position: relative; flex-shrink: 0; }
+  #ctx-badge {
+    background: none; border: 1px solid var(--border-soft); color: var(--text-dim); border-radius: 999px;
+    padding: 3px 9px; font-size: 10.5px; font-weight: 600; font-variant-numeric: tabular-nums;
+    display: none; align-items: center; margin-top: 1px;
+  }
+  #ctx-badge.visible { display: flex; }
+  #ctx-badge:hover { background: var(--bg-surface); color: var(--text-body); }
+
+  #ctx-popover {
+    position: absolute; top: calc(100% + 6px); right: 0; width: 280px; z-index: 30;
+    background: var(--overlay, var(--bg-panel)); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; font-size: 12.5px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    display: none; backdrop-filter: blur(8px);
+  }
+  #ctx-popover.open { display: block; }
+  #ctx-popover .ctx-title { font-weight: 700; font-size: 13px; margin-bottom: 8px; }
+  #ctx-popover .ctx-headline {
+    display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  #ctx-popover .ctx-headline .frac { color: var(--text-muted); font-size: 11.5px; }
+  #ctx-popover .ctx-headline .pct { font-weight: 700; }
+  #ctx-popover .ctx-bar-bg { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin-bottom: 12px; }
+  #ctx-popover .ctx-bar-fg { height: 100%; background: var(--accent); }
+  #ctx-popover .ctx-row {
+    display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-variant-numeric: tabular-nums;
+  }
+  #ctx-popover .ctx-row .ctx-row-name { color: var(--text-body); }
+  #ctx-popover .ctx-row .ctx-row-vals { color: var(--text-muted); white-space: nowrap; }
+  #ctx-popover .ctx-row.ctx-free .ctx-row-name,
+  #ctx-popover .ctx-row.ctx-free .ctx-row-vals { color: var(--text-faint); }
+  #ctx-popover .ctx-sep { border: none; border-top: 1px solid var(--border-faint); margin: 8px 0; }
+  #ctx-popover .ctx-footer { color: var(--text-faint); font-size: 11px; margin-top: 8px; line-height: 1.5; }
+  #ctx-popover .ctx-cost { font-weight: 600; color: var(--text-body); }
+
+  .chat-options-panel {
+    display: flex; flex-direction: column; gap: 10px; padding-bottom: 14px;
+    border-top: 1px solid var(--border-faint); margin-top: 2px; padding-top: 12px;
+  }
+  .chat-options-panel[hidden] { display: none; }
+
+  /* ---------- project chat: thread pills (only shown in project mode) ---------- */
+  #project-threads-row { display: none; align-items: center; gap: 6px; flex-wrap: wrap; padding-bottom: 10px; }
+  .thread-pill {
+    background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-body);
+    border-radius: 999px; padding: 4px 10px; font-size: 11.5px; max-width: 140px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .thread-pill:hover { background: var(--bg-surface-hover); }
+  .thread-pill.active { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent); }
+
+  /* real chat threads (deletable) get a two-part pill: label + a small x */
+  .thread-pill-wrap {
+    display: inline-flex; align-items: center; background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .thread-pill-wrap.active { background: var(--accent-soft); border-color: var(--accent); }
+  .thread-pill-label {
+    background: none; border: none; color: var(--text-body); padding: 4px 2px 4px 10px; font-size: 11.5px;
+    max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .thread-pill-wrap.active .thread-pill-label { color: var(--accent-text); }
+  .thread-pill-del { background: none; border: none; color: var(--text-faint); font-size: 12px; padding: 4px 8px 4px 3px; }
+  .thread-pill-del:hover { color: var(--danger-text); }
+  .thread-pill.new { border-style: dashed; color: var(--text-muted); }
+
+  .ts-toggle-wrap {
+    display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 400; color: var(--text-body); cursor: pointer;
+  }
+  .ts-toggle-wrap input { accent-color: var(--accent); width: 13px; height: 13px; }
+
+  /* Hidden by default -- toggled on via Options, not a permanent row. */
+  .ts { display: none; }
+  body.show-timestamps .ts { display: inline; }
+
+  #chat-messages { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* ---------- AOP controls (inside the options panel) ---------- */
+  #aop-controls { font-weight: 400; }
+  .aop-upload-link {
+    font-size: 11.5px; color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+  }
+  #aop-present { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .aop-toggle-wrap { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-body); cursor: pointer; }
+  .aop-toggle-wrap input { accent-color: var(--accent); width: 13px; height: 13px; }
+  #aop-meta { font-size: 11px; color: var(--text-faint); }
+  #aop-download { font-size: 11px; color: var(--accent-text); text-decoration: none; margin-left: auto; }
+  #aop-download:hover { text-decoration: underline; }
+
+  /* ---------- AOP suggestion cards in chat ---------- */
+  .aop-suggestions { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .aop-card { background: var(--bg-elevated); border: 1px solid var(--border-soft); border-radius: 8px; padding: 10px 12px; }
+  .aop-card-head {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
+    color: var(--warning); margin-bottom: 5px;
+  }
+  .aop-card-body { font-size: 13px; color: var(--text-body); margin-bottom: 8px; }
+  .aop-existing { color: var(--danger-text); text-decoration: line-through; margin-bottom: 4px; }
+  .aop-new { color: var(--success-2); }
+  .aop-apply-btn {
+    background: none; border: 1px solid var(--border-soft); color: var(--text-muted); border-radius: 6px;
+    padding: 4px 10px; font-size: 11.5px;
+  }
+  .aop-apply-btn:hover:not(:disabled) { background: var(--bg-surface); }
+  .aop-apply-btn:disabled { color: var(--success); border-color: var(--success-border); cursor: default; }
+
+  /* plain, ChatGPT-style turns -- no bubbles */
+  .turn { font-size: 13.5px; line-height: 1.55; }
+  .turn .who {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600;
+    color: var(--text-faint); margin-bottom: 4px;
+  }
+  .turn .body { color: var(--text-body); white-space: pre-wrap; }
+  .turn.error .body { color: var(--danger-text); }
+
+  /* ChatGPT-style turn order: your message is a right-aligned bubble,
+     the answer is plain full-width text underneath it. */
+  .turn.user {
+    align-self: flex-end; max-width: 82%; background: var(--bg-surface);
+    padding: 9px 13px; border-radius: 13px 13px 3px 13px;
+  }
+
+  .citations { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 9px; }
+  .citation-ref {
+    font-size: 11.5px; color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px;
+    cursor: pointer; background: none; border: none; padding: 0; font-family: inherit;
+  }
+  .citation-ref:hover { color: var(--accent-text-hover); }
+
+  .thinking { color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
+  .dots { display: inline-flex; gap: 3px; }
+  .dots span {
+    width: 5px; height: 5px; border-radius: 50%; background: var(--text-dim);
+    animation: dot-bounce 1.1s infinite ease-in-out;
+  }
+  .dots span:nth-child(2) { animation-delay: 0.15s; }
+  .dots span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes dot-bounce { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }
+  @media (prefers-reduced-motion: reduce) {
+    .dots span { animation: none; opacity: 0.7; }
+  }
+
+  #chat-form { display: flex; align-items: flex-end; gap: 6px; padding: 10px; border-top: 1px solid var(--border); }
+  #chat-input {
+    flex: 1; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px;
+    padding: 9px 10px; font-size: 13px; font-family: inherit; resize: none; overflow-y: auto;
+    max-height: 160px; line-height: 1.4; white-space: pre-wrap; word-break: break-word;
+  }
+  #chat-form button { background: var(--accent); color: white; border: none; border-radius: 8px; padding: 9px 14px; font-size: 13px; flex-shrink: 0; }
+  #chat-form button:disabled { background: var(--border); color: var(--text-faint); }
+  #chat-empty { color: var(--text-faint); font-size: 12px; padding: 4px; }
+
+  /* Markdown-lite rendering for assistant answers (see renderMarkdownLite) */
+  .body ul, .body ol { margin: 6px 0; padding-left: 22px; }
+  .body li { margin-bottom: 4px; }
+  .body p { margin: 0 0 8px; }
+  .body p:last-child { margin-bottom: 0; }
+
+  .citations-toggle {
+    font-size: 11.5px; color: var(--text-faint); background: none; border: none; padding: 0; margin-top: 9px;
+    text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+  }
+  .citations-toggle:hover { color: var(--text-muted); }
+
+  /* ---------- settings modal ---------- */
+  .modal-overlay {
+    position: fixed; inset: 0; background: var(--modal-backdrop); display: flex; align-items: center; justify-content: center; z-index: 50;
+  }
+  .modal {
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 22px 24px; width: 380px;
+  }
+  .modal h2 { margin: 0 0 16px; font-size: 15px; }
+  .modal label { display: block; font-size: 12px; color: var(--text-muted); margin: 12px 0 5px; }
+  .modal input, .modal select {
+    width: 100%; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 6px;
+    padding: 8px 9px; font-size: 13px;
+  }
+  .hint { font-size: 11px; color: var(--text-faint); margin-top: 5px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+  .modal-actions button { border: none; border-radius: 6px; padding: 8px 14px; font-size: 12.5px; }
+  .modal-actions .cancel { background: var(--bg-surface); color: var(--text-body); }
+  .modal-actions .save { background: var(--accent); color: white; font-weight: 600; }
+</style>
+
+<div id="sidebar">
+  <div id="brand">
+    <svg viewBox="0 0 32 32" width="20" height="20" fill="none" aria-hidden="true">
+      <circle cx="13" cy="13" r="8.5" stroke="#2d5bff" stroke-width="2.4"/>
+      <line x1="19.2" y1="19.2" x2="26.5" y2="26.5" stroke="#2d5bff" stroke-width="2.8" stroke-linecap="round"/>
+      <path d="M10.5 8.5 L10.5 17.5 L18 13 Z" fill="#2d5bff"/>
+    </svg>
+    <span>Audix</span>
+  </div>
+  <a href="/workspace" class="btn secondary" style="margin-bottom:2px; text-decoration:none;">Open Workspace &rarr;</a>
+  <div>
+    <div class="section-title">Ingest</div>
+    <div id="upload-box">
+      <input id="project-input" placeholder="project id" value="demo" />
+      <label class="btn" for="file-input">Upload video</label>
+      <input type="file" id="file-input" accept="video/*" style="display:none" />
+    </div>
+  </div>
+
+  <div id="jobs-section" style="display:none;">
+    <div class="section-title">Processing</div>
+    <div id="jobs-list"></div>
+  </div>
+
+  <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
+    <div class="section-title-row">
+      <div class="section-title">Ingested videos</div>
+      <button id="new-folder-btn" type="button" title="New folder">+ Folder</button>
+    </div>
+    <div id="video-list" style="overflow-y:auto;"></div>
+  </div>
+
+  <div id="global-usage-row" title="All-time Gemini usage across every video">
+    <span>Total spend</span>
+    <span id="global-usage-badge">$0.00</span>
+  </div>
+  <div id="sidebar-footer">
+    <button id="settings-btn">&#9881; Settings</button>
+    <button id="theme-toggle-btn" title="Switch to light theme"><span id="theme-toggle-icon">&#9728;</span></button>
+  </div>
+</div>
+
+<div id="sidebar-rail">
+  <button id="sidebar-toggle" class="panel-toggle-btn" title="Collapse sidebar"><span class="arrow">&#8249;</span></button>
+</div>
+
+<div id="main">
+  <div id="video-wrap">
+    <video id="player" controls></video>
+    <div id="project-banner">
+      <div id="project-banner-text"></div>
+      <div class="hint">Click a graph node or a chat citation to open its video here.</div>
+    </div>
+  </div>
+  <div id="video-resizer" title="drag to resize"></div>
+  <div id="view-tabs">
+    <button class="view-tab-btn active" id="tab-graph-btn" type="button">Graph</button>
+    <button class="view-tab-btn" id="tab-transcript-btn" type="button" disabled>Transcript</button>
+    <button class="view-tab-btn" id="tab-notes-btn" type="button" disabled>Notes</button>
+  </div>
+  <div id="graph-wrap">
+    <div id="project-stale-banner">
+      <span>Videos changed since this merged graph was built.</span>
+      <button id="project-rebuild-btn" type="button">Rebuild</button>
+    </div>
+    <div id="graph"></div>
+    <div id="node-detail"></div>
+    <div id="legend"></div>
+    <div id="focus-reset"><span class="dot"></span>Show full graph &times;</div>
+  </div>
+  <div id="transcript-wrap">
+    <div id="transcript-header">
+      <button id="follow-playback-btn" type="button" class="on" title="Auto-scroll to the line currently playing">
+        <span class="dot"></span>Follow playback
+      </button>
+    </div>
+    <div id="transcript-list"></div>
+  </div>
+  <div id="notes-wrap">
+    <div id="notes-toolbar">
+      <button class="notes-tool-btn" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+      <button class="notes-tool-btn" data-cmd="italic" title="Italic (Ctrl+I)"><i>i</i></button>
+      <div class="notes-tool-sep"></div>
+      <button class="notes-tool-btn" data-cmd="insertUnorderedList" title="Bullet list">&#8226;&#8226;&#8226;</button>
+      <button class="notes-tool-btn" data-cmd="insertOrderedList" title="Numbered list">1.2.</button>
+      <button class="notes-tool-btn" data-cmd="checklist" title="Checklist">&#9744;</button>
+      <span id="notes-save-status"></span>
+    </div>
+    <div id="notes-editor" contenteditable="true" data-placeholder="Write notes about this video... try &quot;- &quot;, &quot;1. &quot; or &quot;[] &quot; to start a list"></div>
+  </div>
+</div>
+
+<div id="resizer" title="drag to resize">
+  <button id="chat-toggle" class="panel-toggle-btn" title="Collapse chat"><span class="arrow">&#8250;</span></button>
+</div>
+
+<div id="chat-panel">
+  <div id="chat-header">
+    <div class="chat-header-top">
+      <div>
+        <div class="chat-title" id="chat-title-text">Ask the graph</div>
+        <div class="sub" id="chat-sub">no video selected</div>
+      </div>
+      <div style="display:flex; align-items:flex-start; gap:6px;">
+        <div id="ctx-badge-wrap">
+          <button id="ctx-badge" type="button" title="Context window usage"></button>
+          <div id="ctx-popover"></div>
+        </div>
+        <button id="chat-options-toggle" class="chat-options-btn" type="button" aria-expanded="false">
+          <span id="chat-options-badge" class="chat-options-badge"></span>
+          Options <span class="chevron">&#8964;</span>
+        </button>
+      </div>
+    </div>
+    <div id="project-threads-row">
+      <div id="project-threads-list" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+      <button id="project-new-thread-btn" type="button" class="thread-pill new">+ New</button>
+    </div>
+    <div id="chat-options-panel" class="chat-options-panel" hidden>
+      <label class="ts-toggle-wrap">
+        <input type="checkbox" id="ts-toggle-input" />
+        <span>Show timestamps</span>
+      </label>
+      <button id="clear-video-chat-btn" type="button" class="aop-upload-link" style="text-align:left; background:none; padding:0;">Clear this chat</button>
+      <div id="aop-controls">
+        <div id="aop-present" style="display:none;">
+          <label class="aop-toggle-wrap">
+            <input type="checkbox" id="aop-toggle-input" />
+            <span>AOP mode</span>
+          </label>
+          <span id="aop-meta"></span>
+          <a id="aop-download" href="#" target="_blank">Download AOP</a>
+        </div>
+        <label class="aop-upload-link" for="aop-file-input" id="aop-upload-label">+ Upload AOP (.docx)</label>
+        <input type="file" id="aop-file-input" accept=".docx" style="display:none" />
+      </div>
+    </div>
+  </div>
+  <div id="chat-messages"><div id="chat-empty">Ask a question about the process shown in this video.</div></div>
+  <form id="chat-form">
+    <textarea id="chat-input" rows="1" placeholder="e.g. what happens after eligibility check?" disabled></textarea>
+    <button type="submit" disabled>Send</button>
+  </form>
+</div>
+
+<div id="settings-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h2>Settings</h2>
+    <label>Gemini API key</label>
+    <input id="api-key-input" type="password" placeholder="AIza..." />
+    <div class="hint" id="api-key-hint"></div>
+    <label>Model</label>
+    <select id="model-select">
+      <option value="gemini-2.5-flash">gemini-2.5-flash (fast, cheap, free-tier friendly)</option>
+      <option value="gemini-2.5-pro">gemini-2.5-pro (higher quality, tighter free-tier limits)</option>
+    </select>
+    <div class="modal-actions">
+      <button class="cancel" id="settings-cancel" type="button">Cancel</button>
+      <button class="save" id="settings-save" type="button">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLORS = {
+  Step: "#4f8cff", Decision: "#ffb84f", System: "#4fd1c5",
+  Actor: "#e879f9", DataEntity: "#a3e635", Screen: "#94a3b8", Artifact: "#f97373",
+};
+// Node colors are category colors and deliberately stay identical across
+// themes -- only the graph's neutral link color needs a theme-specific value
+// (a dark-gray line is invisible on a light canvas and vice versa).
+const GRAPH_LINK_COLOR = { dark: "#3a3f4b", light: "#c7ccd4" };
+
+let graph, player, currentVideo = null, focusedNodeIds = null;
+let currentTranscript = null, transcriptLoadedFor = null, activeView = "graph";
+let currentVideoThreadId = null; // lazily created on first question, then reused/persisted
+let aopState = { exists: false, sections: [] }, aopModeOn = false;
+
+// ---------------- projects (multiple videos of the same process) ----------------
+let currentProject = null, projectModeActive = false, currentProjectThreadId = null;
+
+// hexToRgba, computeNodeDegrees, paintGraphNode, paintGraphNodePointerArea
+// come from /assets/shared.js.
+
+// escapeHtmlText / inlineFormat / renderMarkdownLite and the theme toggle
+// (#theme-toggle-btn / #theme-toggle-icon, window.currentTheme) come from
+// /assets/shared.js.
+
+// ---------------- videos + graph + video player ----------------
+
+async function loadVideoList(selectProjectId, selectVideoId) {
+  const [videos, projects] = await Promise.all([
+    (await fetch("/api/videos")).json(),
+    (await fetch("/api/projects")).json(),
+  ]);
+  const listEl = document.getElementById("video-list");
+  if (!videos.length && !projects.length) {
+    listEl.innerHTML = '<div style="color:var(--text-faint);font-size:12px;padding:8px;">No videos ingested yet. Upload one above, or create a folder first.</div>';
+    currentVideo = null; currentProject = null; projectModeActive = false;
+    player = document.getElementById("player");
+    player.pause(); player.removeAttribute("src"); player.style.display = "block";
+    document.getElementById("project-banner").style.display = "none";
+    document.getElementById("graph").innerHTML = '<div id="empty">No videos left. Upload one to get started.</div>';
+    document.getElementById("legend").innerHTML = "";
+    currentTranscript = null; transcriptLoadedFor = null; notesLoadedFor = null;
+    document.getElementById("tab-transcript-btn").disabled = true;
+    document.getElementById("tab-notes-btn").disabled = true;
+    switchView("graph");
+    resetChat();
+    return;
+  }
+
+  // Every video already lives under backend/data/{project_id}/{video_id}/ --
+  // grouping by the project id typed at upload time is free, no new data needed.
+  const grouped = {};
+  videos.forEach(v => { (grouped[v.project_id] = grouped[v.project_id] || []).push(v); });
+
+  // /api/projects is the authoritative folder list -- it also includes a
+  // folder someone explicitly created (§ "New folder") before it has any
+  // videos in it, which `grouped` alone (derived only from videos) can't
+  // know about.
+  const allProjectIds = new Set([...Object.keys(grouped), ...projects.map(p => p.project_id)]);
+
+  listEl.innerHTML = "";
+  let firstVideoEl = null, firstProjectId = null, firstVideoId = null;
+  let firstEmptyFolderHeader = null, firstEmptyFolderId = null;
+
+  [...allProjectIds].sort().forEach(projectId => {
+    const group = grouped[projectId] || [];
+
+    const header = document.createElement("div");
+    header.className = "project-header";
+    header.dataset.project = projectId;
+    header.innerHTML = `<span class="folder-icon">&#128193;</span><span class="name">${projectId}</span><span class="count">${group.length}</span>`;
+    header.onclick = () => selectProject(projectId, header, group.length);
+    listEl.appendChild(header);
+
+    const sub = document.createElement("div");
+    sub.className = "project-videos";
+    if (!group.length) {
+      sub.innerHTML = '<div class="empty-folder-hint">No videos yet</div>';
+      if (!firstVideoEl && !firstEmptyFolderHeader) { firstEmptyFolderHeader = header; firstEmptyFolderId = projectId; }
+    }
+    group.forEach(v => {
+      const el = document.createElement("div");
+      el.className = "video-item";
+      el.dataset.project = v.project_id;
+      el.dataset.video = v.video_id;
+      el.innerHTML = `<span class="name">${v.video_id}</span>`
+        + (v.has_graph ? "" : '<span class="no-graph-dot" title="graph not built yet"></span>')
+        + '<button class="del" type="button" title="Delete video">&times;</button>';
+      el.onclick = () => selectVideo(v.project_id, v.video_id, el);
+      el.querySelector(".del").onclick = (e) => { e.stopPropagation(); deleteVideo(v.project_id, v.video_id); };
+      sub.appendChild(el);
+      if (!firstVideoEl) { firstVideoEl = el; firstProjectId = v.project_id; firstVideoId = v.video_id; }
+    });
+    listEl.appendChild(sub);
+  });
+
+  if (selectProjectId && selectVideoId) {
+    const target = listEl.querySelector(`.video-item[data-project="${CSS.escape(selectProjectId)}"][data-video="${CSS.escape(selectVideoId)}"]`);
+    if (target) { selectVideo(selectProjectId, selectVideoId, target); return; }
+  }
+  if (selectProjectId && !selectVideoId) {
+    const target = listEl.querySelector(`.project-header[data-project="${CSS.escape(selectProjectId)}"]`);
+    if (target) { selectProject(selectProjectId, target, 0); return; }
+  }
+  if (firstVideoEl) selectVideo(firstProjectId, firstVideoId, firstVideoEl);
+  else if (firstEmptyFolderHeader) selectProject(firstEmptyFolderId, firstEmptyFolderHeader, 0);
+}
+
+async function createFolder() {
+  const name = prompt("New folder name (this becomes the project id):");
+  if (!name || !name.trim()) return;
+  const projectId = name.trim();
+  try {
+    const res = await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: projectId }),
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || "failed to create folder");
+    // pre-fill the upload box so the very next upload naturally lands here
+    document.getElementById("project-input").value = projectId;
+    await loadVideoList(projectId);
+  } catch (err) {
+    alert("Couldn't create folder: " + err.message);
+  }
+}
+
+document.getElementById("new-folder-btn").addEventListener("click", createFolder);
+
+async function deleteVideo(projectId, videoId) {
+  if (!confirm(`Delete "${videoId}"? This removes its transcript, graph, keyframes, and AOP data permanently.`)) return;
+  const res = await fetch(`/api/videos/${projectId}/${videoId}`, { method: "DELETE" });
+  if (!res.ok) { alert("Couldn't delete video: " + (await res.text())); return; }
+  const wasActive = currentVideo && currentVideo.projectId === projectId && currentVideo.videoId === videoId;
+  if (wasActive) { currentVideo = null; }
+  await loadVideoList(); // re-selects the first remaining video automatically
+}
+
+async function selectVideo(projectId, videoId, el) {
+  document.querySelectorAll(".video-item, .project-header").forEach(x => x.classList.remove("active"));
+  if (el) el.classList.add("active");
+  currentVideo = { projectId, videoId };
+  currentProject = null;
+  projectModeActive = false;
+  document.getElementById("project-threads-row").style.display = "none";
+  document.getElementById("clear-video-chat-btn").style.display = "block";
+  document.getElementById("chat-title-text").textContent = "Ask the graph";
+  document.getElementById("chat-input").placeholder = "e.g. what happens after eligibility check?";
+  resetChat();
+  loadVideoChatThread(projectId, videoId);
+
+  player = document.getElementById("player");
+  player.style.display = "block";
+  document.getElementById("project-banner").style.display = "none";
+  document.getElementById("project-stale-banner").style.display = "none";
+  player.src = `/api/video/${projectId}/${videoId}`;
+  focusedNodeIds = null;
+  document.getElementById("focus-reset").style.display = "none";
+  document.getElementById("node-detail").style.display = "none";
+  await loadAopState();
+  refreshCtxBadge(`/api/usage/video/${projectId}/${videoId}`);
+
+  currentTranscript = null;
+  transcriptLoadedFor = null;
+  notesLoadedFor = null;
+  document.getElementById("tab-transcript-btn").disabled = false;
+  document.getElementById("tab-notes-btn").disabled = false;
+  switchView("graph");
+
+  const graphWrap = document.getElementById("graph");
+  let data;
+  try {
+    const res = await fetch(`/api/graph/${projectId}/${videoId}`);
+    if (!res.ok) throw new Error("no graph yet");
+    data = await res.json();
+  } catch (e) {
+    graphWrap.innerHTML = '<div id="empty">No graph extracted for this video yet.</div>';
+    return;
+  }
+  renderGraph(data);
+}
+
+async function selectProject(projectId, el, videoCount) {
+  document.querySelectorAll(".video-item, .project-header").forEach(x => x.classList.remove("active"));
+  if (el) el.classList.add("active");
+  currentProject = projectId;
+  currentVideo = null;
+  projectModeActive = true;
+  focusedNodeIds = null;
+  document.getElementById("focus-reset").style.display = "none";
+  document.getElementById("node-detail").style.display = "none";
+
+  // A project has no single transcript to show -- transcript view is
+  // per-video only, same reason project mode has no video-timestamp AOP
+  // field on its own (docs/ARCHITECTURE.md §5).
+  currentTranscript = null;
+  transcriptLoadedFor = null;
+  notesLoadedFor = null;
+  document.getElementById("tab-transcript-btn").disabled = true;
+  document.getElementById("tab-notes-btn").disabled = true;
+  switchView("graph");
+
+  player = document.getElementById("player");
+  player.pause();
+  player.style.display = "none";
+  document.getElementById("project-banner").style.display = "flex";
+  document.getElementById("project-banner-text").textContent = `📁 ${projectId}`;
+
+  document.getElementById("chat-title-text").textContent = "Ask across the project";
+  document.getElementById("chat-sub").textContent = projectId;
+  document.getElementById("chat-input").placeholder = "e.g. what systems are used across these videos?";
+  document.getElementById("project-threads-row").style.display = "flex";
+  document.getElementById("clear-video-chat-btn").style.display = "none";
+
+  await loadAopState();
+  refreshCtxBadge(`/api/usage/project/${projectId}`);
+  await loadProjectThreads();
+
+  const graphWrap = document.getElementById("graph");
+  try {
+    const res = await fetch(`/api/projects/${projectId}/graph`);
+    if (!res.ok) throw new Error("no merged graph yet");
+    const data = await res.json();
+    renderGraph(data);
+    document.getElementById("project-stale-banner").style.display = data.stale ? "flex" : "none";
+  } catch (e) {
+    document.getElementById("project-stale-banner").style.display = "none";
+    if (!videoCount) {
+      graphWrap.innerHTML = '<div id="empty">No videos in this folder yet.<br><span style="font-size:12px;">Upload one above, with this folder\'s name as the project id.</span></div>';
+      return;
+    }
+    graphWrap.innerHTML = '<div id="empty">No merged graph built yet for this project.<br><button id="build-project-graph-btn" class="btn" style="margin-top:10px; display:inline-block; width:auto; padding:7px 14px;">Build merged graph</button></div>';
+    document.getElementById("build-project-graph-btn").onclick = () => buildProjectGraph(projectId);
+  }
+}
+
+async function buildProjectGraph(projectId) {
+  const btn = document.getElementById("build-project-graph-btn") || document.getElementById("project-rebuild-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Building..."; }
+  try {
+    const res = await fetch(`/api/projects/${projectId}/graph/build`, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "failed to build merged graph");
+    renderGraph(data);
+    document.getElementById("project-stale-banner").style.display = "none";
+  } catch (err) {
+    alert("Couldn't build merged graph: " + err.message);
+  }
+}
+
+document.getElementById("project-rebuild-btn").addEventListener("click", () => buildProjectGraph(currentProject));
+
+function renderGraph(data) {
+  const graphWrap = document.getElementById("graph");
+  const graphOuter = document.getElementById("graph-wrap");
+  graphWrap.innerHTML = "";
+
+  const nodes = data.nodes.map(n => ({ ...n }));
+  const links = data.edges.map(e => ({ source: e.source, target: e.target, type: e.type }));
+  const degrees = computeNodeDegrees(nodes, links);
+  nodes.forEach(n => { n.__degree = degrees[n.id] || 0; });
+
+  graph = ForceGraph()(graphWrap)
+    .width(graphOuter.clientWidth)
+    .height(graphOuter.clientHeight)
+    .graphData({ nodes, links })
+    .nodeId("id")
+    .nodeLabel(n => `${n.type}: ${n.label}`)
+    .nodeCanvasObject((node, ctx, globalScale) => paintGraphNode(node, ctx, globalScale, COLORS, focusedNodeIds, hexToRgba))
+    .nodeCanvasObjectMode(() => "replace")
+    .nodePointerAreaPaint(paintGraphNodePointerArea)
+    .linkLabel(l => l.type)
+    .linkColor(l => {
+      const base = GRAPH_LINK_COLOR[window.currentTheme] || GRAPH_LINK_COLOR.dark;
+      if (!focusedNodeIds) return base;
+      const sid = typeof l.source === "object" ? l.source.id : l.source;
+      const tid = typeof l.target === "object" ? l.target.id : l.target;
+      return (focusedNodeIds.has(sid) && focusedNodeIds.has(tid)) ? base : hexToRgba(base, 0.08);
+    })
+    .linkDirectionalArrowLength(4)
+    .linkDirectionalArrowRelPos(1)
+    .onNodeClick(node => {
+      if (projectModeActive && node.source_video) {
+        showNodeDetail(node); // merged-node data (incl. "from: <video>") while the switch happens
+        drillIntoVideoAndSeek(currentProject, node.source_video, node.id.split("::").slice(1).join("::"), node.t_start_ms);
+      } else {
+        seekAndShow(node);
+      }
+    })
+    .onBackgroundClick(() => { document.getElementById("node-detail").style.display = "none"; });
+
+  buildLegend(nodes);
+}
+
+// Force a redraw after mutating `focusedNodeIds` without touching graphData
+// (same technique as force-graph's own "highlight on hover" example: reassign
+// an accessor to its current value to trigger a re-render).
+// force-graph (checked directly against the loaded 1.43.5 bundle -- it has
+// no .refresh()/.forceRefresh() method) stops its render loop once the
+// simulation settles. Every prop setter shares one internal re-render hook,
+// though, so reassigning ANY prop to its current value -- not just the one
+// that visually changed -- forces a repaint. Node color/label now live in
+// paintGraphNode (shared.js) rather than a nodeColor accessor, so this
+// reassigns nodeCanvasObject itself to trigger that shared hook.
+function refreshGraphColors() {
+  if (!graph) return;
+  graph.linkColor(graph.linkColor());
+  graph.nodeCanvasObject(graph.nodeCanvasObject());
+}
+
+function applyFocusMode(citations) {
+  if (!graph) return;
+  const ids = new Set((citations || []).map(c => c.node_id).filter(Boolean));
+  if (!ids.size) return;
+  const existing = graph.graphData().nodes.filter(n => ids.has(n.id));
+  if (!existing.length) return; // model cited an id not actually in this graph -- leave the view as-is
+
+  focusedNodeIds = ids;
+  refreshGraphColors();
+  graph.zoomToFit(600, 90, n => ids.has(n.id));
+  document.getElementById("focus-reset").style.display = "flex";
+}
+
+function clearFocusMode() {
+  focusedNodeIds = null;
+  refreshGraphColors();
+  if (graph) graph.zoomToFit(500, 60);
+  document.getElementById("focus-reset").style.display = "none";
+}
+
+document.getElementById("focus-reset").addEventListener("click", clearFocusMode);
+
+// ---------------- transcript view (transcript text + the scene keyframe it falls in) ----------------
+
+const VIEW_PANEL_IDS = { graph: "graph-wrap", transcript: "transcript-wrap", notes: "notes-wrap" };
+
+function switchView(view) {
+  activeView = view;
+  document.getElementById("tab-graph-btn").classList.toggle("active", view === "graph");
+  document.getElementById("tab-transcript-btn").classList.toggle("active", view === "transcript");
+  document.getElementById("tab-notes-btn").classList.toggle("active", view === "notes");
+  Object.entries(VIEW_PANEL_IDS).forEach(([name, id]) => {
+    const el = document.getElementById(id);
+    const shown = name === view;
+    el.style.display = shown ? (name === "notes" ? "flex" : "block") : "none";
+    if (shown) {
+      // restart the fade-in animation each time a panel becomes visible
+      el.classList.remove("view-panel-enter");
+      void el.offsetWidth; // force reflow so the class re-triggers
+      el.classList.add("view-panel-enter");
+    }
+  });
+  if (view === "graph" && graph) {
+    // the graph canvas was hidden (display:none) while another view was
+    // open, so its ResizeObserver never fired -- force one resize back.
+    const graphOuter = document.getElementById("graph-wrap");
+    graph.width(graphOuter.clientWidth).height(graphOuter.clientHeight);
+  }
+  if (view === "transcript") updateActiveTranscriptRow();
+}
+
+async function loadTranscriptView(projectId, videoId) {
+  const key = `${projectId}/${videoId}`;
+  const listEl = document.getElementById("transcript-list");
+  if (transcriptLoadedFor === key && currentTranscript) {
+    renderTranscript(currentTranscript);
+    return;
+  }
+  listEl.innerHTML = '<div id="transcript-empty">Loading transcript...</div>';
+  try {
+    const res = await fetch(`/api/transcript/${projectId}/${videoId}`);
+    if (!res.ok) throw new Error("no transcript yet");
+    currentTranscript = await res.json();
+    transcriptLoadedFor = key;
+    renderTranscript(currentTranscript);
+  } catch (e) {
+    currentTranscript = null;
+    transcriptLoadedFor = null;
+    listEl.innerHTML = '<div id="transcript-empty">No transcript available for this video yet.</div>';
+  }
+}
+
+function seekTo(ms) {
+  if (player && typeof ms === "number") {
+    player.currentTime = ms / 1000;
+    player.play();
+  }
+}
+
+// Groups flat transcript segments into sections the way Avoma groups lines
+// under a speaker turn -- this transcript has no speaker diarization
+// (whisper.cpp transcribes, it doesn't identify who's talking), so the
+// natural grouping unit here is a scene change instead: consecutive
+// segments that share the same keyframe are one section, headed by that
+// scene's own still (standing in for Avoma's per-speaker avatar).
+function groupTranscriptIntoSections(segments) {
+  const sections = [];
+  segments.forEach(seg => {
+    const last = sections[sections.length - 1];
+    if (last && last.keyframe_url === seg.keyframe_url) {
+      last.segments.push(seg);
+      last.end_ms = seg.end_ms;
+    } else {
+      sections.push({ keyframe_url: seg.keyframe_url, start_ms: seg.start_ms, end_ms: seg.end_ms, segments: [seg] });
+    }
+  });
+  return sections;
+}
+
+function renderTranscript(segments) {
+  const listEl = document.getElementById("transcript-list");
+  if (!segments || !segments.length) {
+    listEl.innerHTML = '<div id="transcript-empty">No transcript available for this video yet.</div>';
+    return;
+  }
+  listEl.innerHTML = "";
+  const sections = groupTranscriptIntoSections(segments);
+  sections.forEach((section, i) => {
+    const sectionEl = document.createElement("div");
+    sectionEl.className = "t-section";
+
+    const head = document.createElement("div");
+    head.className = "t-section-head";
+    const avatar = section.keyframe_url
+      ? `<img src="${section.keyframe_url}" alt="scene keyframe" loading="lazy">`
+      : `<div class="t-avatar-placeholder"></div>`;
+    head.innerHTML = `
+      ${avatar}
+      <span class="t-section-pill">Scene ${i + 1}</span>
+    `;
+    head.onclick = () => seekTo(section.start_ms);
+    sectionEl.appendChild(head);
+
+    section.segments.forEach(seg => {
+      const line = document.createElement("div");
+      line.className = "t-line";
+      line.dataset.start = seg.start_ms;
+      line.dataset.end = seg.end_ms;
+      line.innerHTML = `
+        <div class="t-line-time">${fmt(seg.start_ms)}</div>
+        <div class="t-line-text">${escapeHtmlText(seg.text)}</div>
+      `;
+      line.onclick = () => seekTo(seg.start_ms);
+      sectionEl.appendChild(line);
+    });
+
+    listEl.appendChild(sectionEl);
+  });
+  updateActiveTranscriptRow();
+}
+
+// Fireflies/Avoma-style "follow along" -- the line matching the video's
+// current playback time stays highlighted and auto-scrolled into view,
+// unless the user has manually scrolled (see the wheel listener below) or
+// clicked "Follow playback" off themselves.
+let followPlayback = true;
+
+function updateActiveTranscriptRow() {
+  if (activeView !== "transcript" || !currentTranscript || !player) return;
+  const ms = player.currentTime * 1000;
+  let activeRow = null;
+  document.querySelectorAll("#transcript-list .t-line").forEach(row => {
+    const isActive = ms >= Number(row.dataset.start) && ms < Number(row.dataset.end);
+    row.classList.toggle("active", isActive);
+    if (isActive) activeRow = row;
+  });
+  if (activeRow && followPlayback) {
+    activeRow.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+document.getElementById("player").addEventListener("timeupdate", updateActiveTranscriptRow);
+
+document.getElementById("follow-playback-btn").addEventListener("click", () => {
+  followPlayback = !followPlayback;
+  document.getElementById("follow-playback-btn").classList.toggle("on", followPlayback);
+  if (followPlayback) updateActiveTranscriptRow();
+});
+
+// A manual scroll (real user wheel/trackpad input, as opposed to our own
+// scrollIntoView calls, which don't fire 'wheel') means the user is reading
+// ahead/back on their own -- turn auto-follow off rather than fight them.
+document.getElementById("transcript-wrap").addEventListener("wheel", () => {
+  if (followPlayback) {
+    followPlayback = false;
+    document.getElementById("follow-playback-btn").classList.remove("on");
+  }
+}, { passive: true });
+
+document.getElementById("tab-graph-btn").addEventListener("click", () => switchView("graph"));
+document.getElementById("tab-transcript-btn").addEventListener("click", () => {
+  if (document.getElementById("tab-transcript-btn").disabled) return;
+  switchView("transcript");
+  if (currentVideo) loadTranscriptView(currentVideo.projectId, currentVideo.videoId);
+});
+document.getElementById("tab-notes-btn").addEventListener("click", () => {
+  if (document.getElementById("tab-notes-btn").disabled) return;
+  switchView("notes");
+  if (currentVideo) loadNotesView(currentVideo.projectId, currentVideo.videoId);
+});
+
+// ---------------- notes view (Notion-lite: contenteditable + markdown-style shortcuts) ----------------
+
+const notesEditor = document.getElementById("notes-editor");
+const notesSaveStatus = document.getElementById("notes-save-status");
+let notesLoadedFor = null, notesSaveTimer = null;
+
+// Minimal allowlist sanitizer -- notes are stored/loaded as real HTML now
+// (not escaped model text like chat answers), so anything reflected back
+// into innerHTML gets run through this first: disallowed tags (script, img,
+// a, iframe, ...) are unwrapped (their text survives, the tag doesn't),
+// everything keeps only the few attributes the editor itself actually uses.
+const NOTES_ALLOWED_TAGS = new Set(["DIV", "P", "BR", "B", "STRONG", "I", "EM", "U", "UL", "OL", "LI", "SPAN", "INPUT"]);
+function sanitizeHtml(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  (function walk(node) {
+    Array.from(node.childNodes).forEach(child => {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        if (!NOTES_ALLOWED_TAGS.has(child.tagName)) {
+          while (child.firstChild) child.parentNode.insertBefore(child.firstChild, child);
+          child.parentNode.removeChild(child);
+          return;
+        }
+        Array.from(child.attributes).forEach(attr => {
+          const keep =
+            (child.tagName === "DIV" && attr.name === "class" && /^todo-item( checked)?$/.test(child.className)) ||
+            (child.tagName === "INPUT" && (attr.name === "type" || attr.name === "checked"));
+          if (!keep) child.removeAttribute(attr.name);
+        });
+        if (child.tagName === "INPUT") child.setAttribute("type", "checkbox");
+        walk(child);
+      } else if (child.nodeType !== Node.TEXT_NODE) {
+        child.parentNode.removeChild(child);
+      }
+    });
+  })(template.content);
+  return template.innerHTML;
+}
+
+async function loadNotesView(projectId, videoId) {
+  const key = `${projectId}/${videoId}`;
+  if (notesLoadedFor === key) return;
+  notesSaveStatus.textContent = "";
+  try {
+    const res = await fetch(`/api/notes/${projectId}/${videoId}`);
+    const data = await res.json();
+    notesEditor.innerHTML = sanitizeHtml(data.html || "");
+  } catch (e) {
+    notesEditor.innerHTML = "";
+  }
+  notesLoadedFor = key;
+}
+
+function scheduleNotesSave() {
+  notesSaveStatus.textContent = "Saving...";
+  clearTimeout(notesSaveTimer);
+  notesSaveTimer = setTimeout(saveNotesNow, 700);
+}
+
+async function saveNotesNow() {
+  if (!currentVideo) return;
+  const html = sanitizeHtml(notesEditor.innerHTML);
+  try {
+    await fetch(`/api/notes/${currentVideo.projectId}/${currentVideo.videoId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ html }),
+    });
+    notesSaveStatus.textContent = "Saved";
+  } catch (e) {
+    notesSaveStatus.textContent = "Save failed";
+  }
+}
+
+notesEditor.addEventListener("input", scheduleNotesSave);
+
+// Toolbar: mousedown preventDefault keeps the current text selection alive
+// (a plain click would blur the editor and collapse it first) so Bold/
+// Italic/list commands apply to whatever was actually selected.
+document.querySelectorAll("#notes-toolbar .notes-tool-btn").forEach(btn => {
+  btn.addEventListener("mousedown", e => e.preventDefault());
+  btn.addEventListener("click", () => {
+    notesEditor.focus();
+    if (btn.dataset.cmd === "checklist") insertChecklistItemFromCurrentLine();
+    else document.execCommand(btn.dataset.cmd, false, null);
+    scheduleNotesSave();
+  });
+});
+
+function currentLineElement() {
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return null;
+  let node = sel.getRangeAt(0).startContainer;
+  if (node.nodeType === Node.TEXT_NODE) node = node.parentNode;
+  while (node && node.parentNode !== notesEditor && node !== notesEditor) node = node.parentNode;
+  return node === notesEditor ? null : node;
+}
+
+function makeTodoItem() {
+  const item = document.createElement("div");
+  item.className = "todo-item";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  const span = document.createElement("span");
+  span.innerHTML = "&nbsp;";
+  item.appendChild(cb);
+  item.appendChild(span);
+  return item;
+}
+
+function placeCaretIn(el, atStart) {
+  const r = document.createRange();
+  r.selectNodeContents(el);
+  r.collapse(!!atStart);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(r);
+}
+
+function insertChecklistItemFromCurrentLine() {
+  const line = currentLineElement();
+  const item = makeTodoItem();
+  if (line) line.replaceWith(item);
+  else notesEditor.appendChild(item);
+  placeCaretIn(item.querySelector("span"), false);
+}
+
+// Notion-style shortcuts: typing "- "/"* " -> bullet, "1. " -> numbered
+// list (both handed off to the browser's own execCommand, which correctly
+// converts whatever block the caret is in), "[] " -> a real checklist item
+// (no native execCommand for this one, so it's hand-built above).
+notesEditor.addEventListener("keydown", e => {
+  if (e.key === " ") {
+    setTimeout(() => {
+      const sel = window.getSelection();
+      if (!sel.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      const node = range.startContainer;
+      if (node.nodeType !== Node.TEXT_NODE) return;
+      const before = node.textContent.slice(0, range.startOffset);
+      if (/^[-*]\s$/.test(before)) {
+        node.textContent = node.textContent.slice(range.startOffset);
+        document.execCommand("insertUnorderedList");
+      } else if (/^\d+\.\s$/.test(before)) {
+        node.textContent = node.textContent.slice(range.startOffset);
+        document.execCommand("insertOrderedList");
+      } else if (/^\[\s?\]\s$/.test(before)) {
+        node.textContent = node.textContent.slice(range.startOffset);
+        insertChecklistItemFromCurrentLine();
+      }
+    }, 0);
+    return;
+  }
+
+  if (e.key === "Enter") {
+    const line = currentLineElement();
+    if (!line || !line.classList || !line.classList.contains("todo-item")) return;
+    e.preventDefault();
+    const span = line.querySelector("span");
+    if (!span.textContent.trim()) {
+      const empty = document.createElement("div");
+      empty.innerHTML = "<br>";
+      line.replaceWith(empty);
+      placeCaretIn(empty, true);
+    } else {
+      const next = makeTodoItem();
+      line.after(next);
+      placeCaretIn(next.querySelector("span"), false);
+    }
+    scheduleNotesSave();
+  }
+});
+
+notesEditor.addEventListener("click", e => {
+  if (e.target.matches('.todo-item input[type="checkbox"]')) {
+    e.target.closest(".todo-item").classList.toggle("checked", e.target.checked);
+    scheduleNotesSave();
+  }
+});
+
+document.addEventListener("keydown", e => {
+  if (document.activeElement !== notesEditor) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") { e.preventDefault(); document.execCommand("bold"); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "i") { e.preventDefault(); document.execCommand("italic"); }
+});
+
+// Keep the graph canvas sized to its own panel (not the window) so it never
+// visually spills into the chat panel and steals its clicks -- this was the
+// exact bug reported: graph rendering full-window and swallowing chat input.
+const graphResizeObserver = new ResizeObserver(() => {
+  if (!graph) return;
+  const graphOuter = document.getElementById("graph-wrap");
+  graph.width(graphOuter.clientWidth).height(graphOuter.clientHeight);
+});
+graphResizeObserver.observe(document.getElementById("graph-wrap"));
+
+function seekAndShow(node) {
+  if (player && typeof node.t_start_ms === "number") {
+    player.currentTime = node.t_start_ms / 1000;
+    player.play();
+  }
+  showNodeDetail(node);
+  if (graph) {
+    graph.centerAt(node.x, node.y, 600);
+    graph.zoom(3, 600);
+  }
+}
+
+function seekByNodeId(nodeId, fallbackMs) {
+  const data = graph ? graph.graphData() : null;
+  const node = data ? data.nodes.find(n => n.id === nodeId) : null;
+  if (node) { seekAndShow(node); return; }
+  if (player && typeof fallbackMs === "number") { player.currentTime = fallbackMs / 1000; player.play(); }
+}
+
+// Used from project mode: a merged-graph node or a project-chat citation
+// points at one specific video + its ORIGINAL (non-namespaced) node id.
+// Switches into that video (exiting project mode, exactly like clicking it
+// in the sidebar would) and seeks to the right moment once its own graph
+// has loaded.
+async function drillIntoVideoAndSeek(projectId, videoId, originalNodeId, fallbackMs) {
+  const el = document.querySelector(`.video-item[data-project="${CSS.escape(projectId)}"][data-video="${CSS.escape(videoId)}"]`);
+  await selectVideo(projectId, videoId, el);
+  seekByNodeId(originalNodeId, fallbackMs);
+}
+
+function showNodeDetail(node) {
+  const el = document.getElementById("node-detail");
+  el.style.display = "block";
+  el.innerHTML = `
+    <button class="node-detail-close" type="button" title="Close">&times;</button>
+    <div class="type">${node.type}</div>
+    <div class="label">${node.label}</div>
+    <div style="opacity:0.8; margin-bottom:8px;">${node.description || ""}</div>
+    ${node.source_video ? `<div style="font-size:11px; opacity:0.6; margin-bottom:4px;">from: ${node.source_video}</div>` : ""}
+    <div class="ts" style="font-size:11px; opacity:0.5;">${fmt(node.t_start_ms)} &ndash; ${fmt(node.t_end_ms)}</div>
+  `;
+  el.querySelector(".node-detail-close").onclick = () => { el.style.display = "none"; };
+}
+
+function fmt(ms) {
+  if (typeof ms !== "number") return "?";
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function buildLegend(nodes) {
+  const typesPresent = [...new Set(nodes.map(n => n.type))];
+  document.getElementById("legend").innerHTML =
+    typesPresent.map(t => `<span><i style="background:${COLORS[t] || "#888"}"></i>${t}</span>`).join("");
+}
+
+// ---------------- project chat threads ----------------
+
+async function loadProjectThreads() {
+  const threads = await (await fetch(`/api/projects/${currentProject}/threads`)).json();
+  if (threads.length) {
+    await selectProjectThread(threads[0].id);
+  } else {
+    await selectProjectThread(null);
+  }
+}
+
+function renderProjectThreadPills(threads) {
+  const el = document.getElementById("project-threads-list");
+  el.innerHTML = "";
+  threads.forEach(t => {
+    const wrap = document.createElement("span");
+    wrap.className = "thread-pill-wrap" + (t.id === currentProjectThreadId ? " active" : "");
+
+    const label = document.createElement("button");
+    label.type = "button";
+    label.className = "thread-pill-label";
+    label.textContent = t.title;
+    label.title = t.title;
+    label.onclick = () => selectProjectThread(t.id);
+    wrap.appendChild(label);
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "thread-pill-del";
+    del.title = "Delete chat";
+    del.textContent = "×";
+    del.onclick = (e) => { e.stopPropagation(); deleteProjectThread(t.id); };
+    wrap.appendChild(del);
+
+    el.appendChild(wrap);
+  });
+}
+
+async function deleteProjectThread(threadId) {
+  if (!confirm("Delete this chat?")) return;
+  await fetch(`/api/projects/${currentProject}/threads/${threadId}`, { method: "DELETE" });
+  if (threadId === currentProjectThreadId) currentProjectThreadId = null;
+  await loadProjectThreads(); // re-selects the next thread, or starts a fresh one if none remain
+}
+
+async function selectProjectThread(threadId) {
+  if (!threadId) {
+    const created = await (await fetch(`/api/projects/${currentProject}/threads`, { method: "POST" })).json();
+    threadId = created.id;
+  }
+  currentProjectThreadId = threadId;
+  const thread = await (await fetch(`/api/projects/${currentProject}/threads/${threadId}`)).json();
+
+  const messagesEl = document.getElementById("chat-messages");
+  messagesEl.innerHTML = "";
+  if (!thread.messages.length) {
+    messagesEl.innerHTML = '<div id="chat-empty">Ask a question across every video in this project.</div>';
+  } else {
+    // Citations aren't persisted per message (same simplification Workspace's
+    // thread replay already makes) -- replayed answers show plain text only.
+    thread.messages.forEach(m => {
+      if (m.role === "user") addUserTurn(m.content);
+      else fillAssistantTurn(addThinkingTurn(false), m.content, [], []);
+    });
+  }
+  document.getElementById("chat-input").disabled = false;
+  document.querySelector("#chat-form button").disabled = false;
+
+  const threads = await (await fetch(`/api/projects/${currentProject}/threads`)).json();
+  renderProjectThreadPills(threads);
+}
+
+document.getElementById("project-new-thread-btn").addEventListener("click", () => selectProjectThread(null));
+
+// ---------------- AOP (.docx) ----------------
+
+// AOP mode is mode-aware: same controls/ids, but targets either the current
+// video's AOP or the current project's AOP depending on projectModeActive
+// (checked live here, but see fillAssistantTurn -- the Apply button on an
+// answer captures its own scope at creation time, not read live later).
+async function loadAopState() {
+  aopModeOn = false;
+  document.getElementById("aop-toggle-input").checked = false;
+  document.getElementById("chat-options-badge").classList.remove("on");
+  if (projectModeActive && currentProject) {
+    aopState = await (await fetch(`/api/projects/${currentProject}/aop`)).json();
+    renderAopControls();
+    return;
+  }
+  if (!currentVideo) { aopState = { exists: false, sections: [] }; renderAopControls(); return; }
+  aopState = await (await fetch(`/api/aop/${currentVideo.projectId}/${currentVideo.videoId}`)).json();
+  renderAopControls();
+}
+
+function renderAopControls() {
+  document.getElementById("aop-present").style.display = aopState.exists ? "flex" : "none";
+  document.getElementById("aop-upload-label").textContent = aopState.exists ? "Replace AOP (.docx)" : "+ Upload AOP (.docx)";
+  if (!aopState.exists) return;
+  document.getElementById("aop-meta").textContent = `${aopState.sections.length} sections`;
+  document.getElementById("aop-download").href = projectModeActive
+    ? `/api/projects/${currentProject}/aop/download`
+    : `/api/aop/${currentVideo.projectId}/${currentVideo.videoId}/download`;
+}
+
+document.getElementById("aop-file-input").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (projectModeActive ? !currentProject : !currentVideo) return;
+  const form = new FormData();
+  form.append("file", file);
+  e.target.value = "";
+
+  const url = projectModeActive
+    ? `/api/projects/${currentProject}/aop`
+    : `/api/aop/${currentVideo.projectId}/${currentVideo.videoId}`;
+  const res = await fetch(url, { method: "POST", body: form });
+  if (!res.ok) { alert("AOP upload failed: " + await res.text()); return; }
+  await loadAopState();
+});
+
+const aopOptionsBadge = document.getElementById("chat-options-badge");
+
+document.getElementById("aop-toggle-input").addEventListener("change", (e) => {
+  aopModeOn = e.target.checked;
+  aopOptionsBadge.classList.toggle("on", aopModeOn);
+});
+
+// ---------------- collapsible chat options (Options button) ----------------
+
+const chatOptionsToggle = document.getElementById("chat-options-toggle");
+const chatOptionsPanel = document.getElementById("chat-options-panel");
+chatOptionsToggle.addEventListener("click", () => {
+  const opening = chatOptionsPanel.hidden;
+  chatOptionsPanel.hidden = !opening;
+  chatOptionsToggle.setAttribute("aria-expanded", String(opening));
+});
+
+// ---------------- show timestamps toggle (hidden by default) ----------------
+
+const tsToggleEl = document.getElementById("ts-toggle-input");
+if (localStorage.getItem("showTimestamps") === "1") {
+  document.body.classList.add("show-timestamps");
+  tsToggleEl.checked = true;
+}
+tsToggleEl.addEventListener("change", (e) => {
+  document.body.classList.toggle("show-timestamps", e.target.checked);
+  localStorage.setItem("showTimestamps", e.target.checked ? "1" : "0");
+});
+
+// ---------------- upload + processing jobs ----------------
+
+document.getElementById("file-input").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const projectId = document.getElementById("project-input").value.trim() || "demo";
+  const form = new FormData();
+  form.append("project_id", projectId);
+  form.append("file", file);
+  e.target.value = "";
+
+  const res = await fetch("/api/upload", { method: "POST", body: form });
+  if (!res.ok) { alert("upload failed: " + await res.text()); return; }
+  const data = await res.json();
+  pollJob(data.job_id);
+});
+
+function jobsSection() { return document.getElementById("jobs-section"); }
+
+async function pollJob(jobId) {
+  jobsSection().style.display = "block";
+  const listEl = document.getElementById("jobs-list");
+  const row = document.createElement("div");
+  row.className = "job-row";
+  row.innerHTML = `<div class="name"></div><div class="stage"></div><div class="bar-bg"><div class="bar-fg" style="width:0%"></div></div>`;
+  listEl.prepend(row);
+
+  while (true) {
+    let job;
+    try {
+      job = await (await fetch(`/api/jobs/${jobId}`)).json();
+    } catch (e) { await sleep(2000); continue; }
+
+    row.querySelector(".name").textContent = `${job.project_id} / ${job.video_id}`;
+    row.querySelector(".stage").textContent = job.status === "failed" ? `failed: ${job.error}` : job.stage;
+    row.querySelector(".bar-fg").style.width = `${job.progress}%`;
+    row.classList.toggle("failed", job.status === "failed");
+
+    if (job.status === "done" || job.status === "failed") {
+      if (job.status === "done") {
+        await loadVideoList(job.project_id, job.video_id);
+      }
+      setTimeout(() => row.remove(), job.status === "done" ? 3000 : 8000);
+      break;
+    }
+    await sleep(1500);
+  }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ---------------- resizable chat column + video row ----------------
+
+const MIN_CHAT_WIDTH = 260, MAX_CHAT_WIDTH = 640;
+const chatPanelEl = document.getElementById("chat-panel");
+const resizerEl = document.getElementById("resizer");
+
+function setChatWidth(px) {
+  chatPanelEl.style.width = `${Math.max(MIN_CHAT_WIDTH, Math.min(MAX_CHAT_WIDTH, px))}px`;
+}
+
+const savedChatWidth = parseInt(localStorage.getItem("chatPanelWidth"), 10);
+if (savedChatWidth) setChatWidth(savedChatWidth);
+
+let resizing = false;
+resizerEl.addEventListener("mousedown", () => {
+  if (document.body.classList.contains("chat-collapsed")) return;
+  resizing = true;
+  resizerEl.classList.add("dragging");
+  document.body.style.userSelect = "none";
+  document.body.style.cursor = "col-resize";
+});
+
+// ---------------- light / dark theme ----------------
+// Toggle button/icon wiring lives in /assets/shared.js; this page just reacts
+// to the change (graph link color is theme-dependent, everything else is CSS).
+window.onThemeChange = () => refreshGraphColors();
+
+// ---------------- collapse sidebar / chat panel ----------------
+
+const sidebarToggleEl = document.getElementById("sidebar-toggle");
+if (localStorage.getItem("sidebarCollapsed") === "1") {
+  document.body.classList.add("sidebar-collapsed");
+  sidebarToggleEl.title = "Expand sidebar";
+}
+sidebarToggleEl.addEventListener("click", () => {
+  const collapsed = document.body.classList.toggle("sidebar-collapsed");
+  sidebarToggleEl.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
+  localStorage.setItem("sidebarCollapsed", collapsed ? "1" : "0");
+});
+
+const chatToggleEl = document.getElementById("chat-toggle");
+chatToggleEl.addEventListener("mousedown", (e) => e.stopPropagation()); // don't let this double as a resize-drag start
+if (localStorage.getItem("chatCollapsed") === "1") {
+  document.body.classList.add("chat-collapsed");
+  chatToggleEl.title = "Expand chat";
+}
+chatToggleEl.addEventListener("click", () => {
+  const collapsed = document.body.classList.toggle("chat-collapsed");
+  chatToggleEl.title = collapsed ? "Expand chat" : "Collapse chat";
+  localStorage.setItem("chatCollapsed", collapsed ? "1" : "0");
+});
+window.addEventListener("mousemove", (e) => {
+  if (!resizing) return;
+  setChatWidth(window.innerWidth - e.clientX);
+});
+window.addEventListener("mouseup", () => {
+  if (!resizing) return;
+  resizing = false;
+  resizerEl.classList.remove("dragging");
+  document.body.style.userSelect = "";
+  document.body.style.cursor = "";
+  localStorage.setItem("chatPanelWidth", parseInt(chatPanelEl.style.width, 10));
+});
+
+const MIN_VIDEO_HEIGHT = 120;
+const videoWrapEl = document.getElementById("video-wrap");
+const videoResizerEl = document.getElementById("video-resizer");
+
+function setVideoHeight(px) {
+  const maxH = window.innerHeight * 0.75;
+  videoWrapEl.style.height = `${Math.max(MIN_VIDEO_HEIGHT, Math.min(maxH, px))}px`;
+}
+
+const savedVideoHeight = parseInt(localStorage.getItem("videoWrapHeight"), 10);
+if (savedVideoHeight) setVideoHeight(savedVideoHeight);
+
+let videoResizing = false;
+videoResizerEl.addEventListener("mousedown", () => {
+  videoResizing = true;
+  videoResizerEl.classList.add("dragging");
+  document.body.style.userSelect = "none";
+  document.body.style.cursor = "row-resize";
+});
+window.addEventListener("mousemove", (e) => {
+  if (!videoResizing) return;
+  const mainTop = document.getElementById("main").getBoundingClientRect().top;
+  setVideoHeight(e.clientY - mainTop);
+});
+window.addEventListener("mouseup", () => {
+  if (!videoResizing) return;
+  videoResizing = false;
+  videoResizerEl.classList.remove("dragging");
+  document.body.style.userSelect = "";
+  document.body.style.cursor = "";
+  localStorage.setItem("videoWrapHeight", parseInt(videoWrapEl.style.height, 10));
+});
+
+// ---------------- chat ----------------
+
+function resetChat() {
+  document.getElementById("chat-messages").innerHTML = '<div id="chat-empty">Ask a question about the process shown in this video.</div>';
+  document.getElementById("chat-sub").textContent = currentVideo ? `${currentVideo.projectId} / ${currentVideo.videoId}` : "no video selected";
+  document.getElementById("chat-input").disabled = false;
+  document.querySelector("#chat-form button").disabled = false;
+}
+
+// Video chat now persists server-side (one thread per video, created lazily
+// on the first question and reused after that) -- this loads whatever the
+// most recent one holds and replays it, instead of always starting blank.
+// Citations aren't persisted per message (same simplification project/
+// workspace thread replay already makes), so replayed answers show plain
+// text only.
+async function loadVideoChatThread(projectId, videoId) {
+  currentVideoThreadId = null;
+  const threads = await (await fetch(`/api/videos/${projectId}/${videoId}/threads`)).json();
+  if (!threads.length) return;
+  currentVideoThreadId = threads[0].id;
+  const thread = await (await fetch(`/api/videos/${projectId}/${videoId}/threads/${currentVideoThreadId}`)).json();
+  if (!thread.messages.length) return;
+  document.getElementById("chat-messages").innerHTML = "";
+  thread.messages.forEach(m => {
+    if (m.role === "user") addUserTurn(m.content);
+    else fillAssistantTurn(addThinkingTurn(false), m.content, [], []);
+  });
+}
+
+// Clearing now actually deletes the persisted thread server-side, not just
+// the on-screen conversation -- otherwise it would silently reappear the
+// next time this video was selected.
+document.getElementById("clear-video-chat-btn").addEventListener("click", async () => {
+  if (currentVideoThreadId && currentVideo) {
+    await fetch(`/api/videos/${currentVideo.projectId}/${currentVideo.videoId}/threads/${currentVideoThreadId}`, { method: "DELETE" });
+  }
+  currentVideoThreadId = null;
+  resetChat();
+});
+
+// Auto-grow the textarea as you type (ChatGPT-style), instead of the text
+// overflowing a fixed-height single-line input. Enter sends; Shift+Enter
+// inserts a newline.
+const chatInputEl = document.getElementById("chat-input");
+function autosizeChatInput() {
+  chatInputEl.style.height = "auto";
+  chatInputEl.style.height = `${chatInputEl.scrollHeight}px`;
+}
+chatInputEl.addEventListener("input", autosizeChatInput);
+chatInputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById("chat-form").requestSubmit();
+  }
+});
+
+document.getElementById("chat-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (projectModeActive ? (!currentProject || !currentProjectThreadId) : !currentVideo) return;
+  const input = chatInputEl;
+  const question = input.value.trim();
+  if (!question) return;
+  input.value = "";
+  autosizeChatInput();
+  addUserTurn(question);
+
+  const btn = document.querySelector("#chat-form button");
+  input.disabled = true; btn.disabled = true;
+
+  // Shown the instant send is hit, in the exact spot the answer will land --
+  // never a frozen gap, even when the real response comes back in well under
+  // a second.
+  const thinkingTurn = addThinkingTurn(aopModeOn);
+
+  try {
+    let res, data;
+    if (projectModeActive) {
+      res = await fetch(`/api/projects/${currentProject}/threads/${currentProjectThreadId}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, aop_mode: aopModeOn }),
+      });
+      data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "chat failed");
+      fillAssistantTurn(thinkingTurn, data.answer, data.citations || [], data.aop_suggestions || []);
+      // Project citations carry {video_id, node_id, t_ms} with the ORIGINAL
+      // node id; the merged graph currently on screen namespaces ids as
+      // "{video_id}::{node_id}" -- map before handing off to focus mode.
+      applyFocusMode((data.citations || []).map(c => ({ node_id: `${c.video_id}::${c.node_id}` })));
+      refreshCtxBadge(`/api/usage/project/${currentProject}`);
+      const threads = await (await fetch(`/api/projects/${currentProject}/threads`)).json();
+      renderProjectThreadPills(threads);
+    } else {
+      if (!currentVideoThreadId) {
+        const created = await (await fetch(`/api/videos/${currentVideo.projectId}/${currentVideo.videoId}/threads`, { method: "POST" })).json();
+        currentVideoThreadId = created.id;
+      }
+      res = await fetch(`/api/chat/${currentVideo.projectId}/${currentVideo.videoId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, aop_mode: aopModeOn, thread_id: currentVideoThreadId }),
+      });
+      data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "chat failed");
+      fillAssistantTurn(thinkingTurn, data.answer, data.citations || [], data.aop_suggestions || []);
+      applyFocusMode(data.citations || []);
+      refreshCtxBadge(`/api/usage/video/${currentVideo.projectId}/${currentVideo.videoId}`);
+    }
+  } catch (err) {
+    fillErrorTurn(thinkingTurn, err.message);
+  } finally {
+    input.disabled = false; btn.disabled = false; input.focus();
+  }
+});
+
+function addUserTurn(text) {
+  const el = document.getElementById("chat-messages");
+  const empty = document.getElementById("chat-empty");
+  if (empty) empty.remove();
+
+  const div = document.createElement("div");
+  div.className = "turn user";
+  div.innerHTML = `<div class="body"></div>`;
+  div.querySelector(".body").textContent = text;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  return div;
+}
+
+function addThinkingTurn(aop) {
+  const el = document.getElementById("chat-messages");
+  const empty = document.getElementById("chat-empty");
+  if (empty) empty.remove();
+
+  const div = document.createElement("div");
+  div.className = "turn assistant";
+  const label = aop ? "Reading the graph, transcript &amp; AOP" : "Reading the graph &amp; transcript";
+  div.innerHTML = `
+    <div class="who">Assistant</div>
+    <div class="thinking">${label}<span class="dots"><span></span><span></span><span></span></span></div>
+  `;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  return div;
+}
+
+const CITATIONS_COLLAPSE_AT = 6;
+
+function fillAssistantTurn(turnEl, answer, citations, aopSuggestions) {
+  // Captured now, not read live inside the click handlers below -- if the
+  // user switches video/project before clicking a citation or Apply on an
+  // older answer, it should still act on the scope that answer belongs to.
+  const answeredInProject = projectModeActive ? currentProject : null;
+  const applyCtx = projectModeActive ? { project: currentProject } : { video: currentVideo };
+
+  turnEl.innerHTML = `<div class="who">Assistant</div><div class="body"></div>`;
+  turnEl.querySelector(".body").innerHTML = renderMarkdownLite(answer);
+
+  if (citations.length) {
+    const c = document.createElement("div");
+    c.className = "citations";
+    const collapsible = citations.length > CITATIONS_COLLAPSE_AT;
+
+    const buildRef = (cit) => {
+      const ref = document.createElement("button");
+      ref.className = "citation-ref";
+      ref.type = "button";
+      const labelSpan = document.createElement("span");
+      labelSpan.textContent = cit.label || cit.node_id;
+      const tsSpan = document.createElement("span");
+      tsSpan.className = "ts";
+      tsSpan.textContent = ` · ${fmt(cit.t_ms)}`;
+      ref.appendChild(labelSpan);
+      ref.appendChild(tsSpan);
+      ref.onclick = () => {
+        if (cit.video_id && answeredInProject) {
+          drillIntoVideoAndSeek(answeredInProject, cit.video_id, cit.node_id, cit.t_ms);
+        } else {
+          seekByNodeId(cit.node_id, cit.t_ms);
+        }
+      };
+      return ref;
+    };
+
+    const shown = collapsible ? citations.slice(0, CITATIONS_COLLAPSE_AT) : citations;
+    shown.forEach(cit => c.appendChild(buildRef(cit)));
+
+    if (collapsible) {
+      const rest = citations.slice(CITATIONS_COLLAPSE_AT);
+      const toggle = document.createElement("button");
+      toggle.className = "citations-toggle";
+      toggle.type = "button";
+      toggle.textContent = `Show ${rest.length} more`;
+      let expanded = false;
+      toggle.onclick = () => {
+        expanded = !expanded;
+        if (expanded) {
+          rest.forEach(cit => c.insertBefore(buildRef(cit), toggle));
+          toggle.textContent = "Show fewer";
+        } else {
+          c.querySelectorAll(".citation-ref").forEach((el, i) => { if (i >= CITATIONS_COLLAPSE_AT) el.remove(); });
+          toggle.textContent = `Show ${rest.length} more`;
+        }
+      };
+      c.appendChild(toggle);
+    }
+    turnEl.appendChild(c);
+  }
+
+  if (aopSuggestions && aopSuggestions.length) {
+    const box = document.createElement("div");
+    box.className = "aop-suggestions";
+    aopSuggestions.forEach(sug => {
+      const action = sug.action || "add";
+      const actionLabel = { add: "Add", remove: "Remove", replace: "Replace" }[action] || "Add";
+      const card = document.createElement("div");
+      card.className = "aop-card";
+
+      const head = document.createElement("div");
+      head.className = "aop-card-head";
+      head.textContent = `AOP · §${sug.section_id}${sug.section_title ? " " + sug.section_title : ""} · ${actionLabel}`;
+      card.appendChild(head);
+
+      const body = document.createElement("div");
+      body.className = "aop-card-body";
+      if (action === "remove" || action === "replace") {
+        const ex = document.createElement("div");
+        ex.className = "aop-existing";
+        ex.textContent = `− ${sug.existing_text || ""}`;
+        body.appendChild(ex);
+      }
+      if (action === "add" || action === "replace") {
+        const nw = document.createElement("div");
+        nw.className = "aop-new";
+        nw.textContent = `+ ${sug.suggestion || ""}`;
+        body.appendChild(nw);
+      }
+      card.appendChild(body);
+
+      const applyBtn = document.createElement("button");
+      applyBtn.className = "aop-apply-btn";
+      applyBtn.type = "button";
+      applyBtn.textContent = `Apply (${actionLabel})`;
+      applyBtn.onclick = async () => {
+        applyBtn.disabled = true;
+        applyBtn.textContent = "Applying...";
+        try {
+          const url = applyCtx.project
+            ? `/api/projects/${applyCtx.project}/aop/apply`
+            : `/api/aop/${applyCtx.video.projectId}/${applyCtx.video.videoId}/apply`;
+          const r = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              section_id: sug.section_id, action,
+              text: sug.suggestion || "", existing_text: sug.existing_text || "",
+            }),
+          });
+          if (!r.ok) throw new Error((await r.json()).detail || "failed to apply");
+          applyBtn.textContent = "Applied ✓";
+          await loadAopState();
+        } catch (err) {
+          applyBtn.disabled = false;
+          applyBtn.textContent = `Apply (${actionLabel})`;
+          alert("Couldn't apply that change: " + err.message);
+        }
+      };
+      card.appendChild(applyBtn);
+      box.appendChild(card);
+    });
+    turnEl.appendChild(box);
+  }
+
+  document.getElementById("chat-messages").scrollTop = document.getElementById("chat-messages").scrollHeight;
+}
+
+function fillErrorTurn(turnEl, message) {
+  turnEl.className = "turn error";
+  turnEl.innerHTML = `<div class="who">Assistant</div><div class="body">Couldn't get an answer: ${message}</div>`;
+}
+
+// ---------------- settings ----------------
+
+const modal = document.getElementById("settings-modal");
+
+document.getElementById("settings-btn").onclick = async () => {
+  const s = await (await fetch("/api/settings")).json();
+  document.getElementById("api-key-input").value = "";
+  document.getElementById("api-key-input").placeholder = s.gemini_api_key_set ? `saved: ${s.gemini_api_key_masked}` : "AIza...";
+  document.getElementById("api-key-hint").textContent = s.gemini_api_key_set
+    ? "A key is already saved. Enter a new one to replace it, or leave blank to keep it."
+    : "No key saved yet -- ingestion/chat will fail without one. Get a free one at aistudio.google.com.";
+  document.getElementById("model-select").value = s.gemini_model || "gemini-2.5-flash";
+  modal.style.display = "flex";
+};
+document.getElementById("settings-cancel").onclick = () => { modal.style.display = "none"; };
+document.getElementById("settings-save").onclick = async () => {
+  const payload = { gemini_model: document.getElementById("model-select").value };
+  const key = document.getElementById("api-key-input").value.trim();
+  if (key) payload.gemini_api_key = key;
+  await fetch("/api/settings", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  });
+  modal.style.display = "none";
+};
+
+loadVideoList();
+</script>
