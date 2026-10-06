@@ -16,6 +16,9 @@ single-user, runs on your own machine, no auth. See [`docs/ARCHITECTURE.md`](doc
 for the full technical write-up and [`plan.md`](plan.md) for how the design
 got here.
 
+![The knowledge graph and grounded chat, side by side](docs/screenshots/graph-and-chat.png)
+*The graph for one video, and a chat answer citing the systems it found — every colored ring is a clickable node.*
+
 ---
 
 ## Why this exists
